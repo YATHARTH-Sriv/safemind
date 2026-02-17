@@ -1,7 +1,12 @@
 "use client";
 
 import { AnimatedOrb } from "@/components/chat/animated-orb";
-import { useState, useEffect, useRef, useCallback, Fragment } from "react";
+import { MessageRenderer } from "@/components/chat/MessageRenderer";
+import { ApiKeyModal } from "@/components/chat/ApiKeyModal";
+import { VaultModal } from "@/components/chat/VaultModal";
+import { PlanBuilderModal } from "@/components/chat/PlanBuilderModal";
+import { PrivacyDashboard } from "@/components/chat/PrivacyDashboard";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type {
   Message,
   Conversation,
@@ -26,7 +31,7 @@ import {
   exportConversations,
   downloadJson,
 } from "@/lib/storage";
-import { Landing } from "@/components/Landingpage/Landing";
+import { Landing } from "@/components/landingpage/Landing";
 
 const QUICK_PROMPTS = [
   { text: "I've had headaches for 3 days" },
@@ -141,136 +146,6 @@ function buildDoctorBrief(conversation: Conversation): string {
   ].join("\n");
 }
 
-function renderInlineMarkdown(text: string) {
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g).filter(Boolean);
-  return parts.map((part, index) => {
-    if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
-      return <code key={`c-${index}`} className="sm-md-inline-code">{part.slice(1, -1)}</code>;
-    }
-    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
-      return <strong key={`b-${index}`}>{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
-      return <em key={`i-${index}`}>{part.slice(1, -1)}</em>;
-    }
-    return <Fragment key={`t-${index}`}>{part}</Fragment>;
-  });
-}
-
-type MessageBlock =
-  | { type: "heading"; level: 2 | 3 | 4; text: string }
-  | { type: "paragraph"; text: string }
-  | { type: "ul"; items: string[] }
-  | { type: "ol"; items: string[] };
-
-function isBlockStarter(line: string) {
-  return /^(#{1,4})\s+/.test(line) || /^[-*]\s+/.test(line) || /^\d+\.\s+/.test(line);
-}
-
-function parseMessageBlocks(content: string): MessageBlock[] {
-  const lines = content.replace(/\r/g, "").split("\n");
-  const blocks: MessageBlock[] = [];
-  let i = 0;
-
-  while (i < lines.length) {
-    const trimmed = lines[i].trim();
-    if (!trimmed) {
-      i += 1;
-      continue;
-    }
-
-    const headingMatch = trimmed.match(/^(#{1,4})\s+(.+)$/);
-    if (headingMatch) {
-      const hashes = headingMatch[1].length;
-      const level = (hashes <= 1 ? 2 : hashes === 2 ? 3 : 4) as 2 | 3 | 4;
-      blocks.push({ type: "heading", level, text: headingMatch[2].trim() });
-      i += 1;
-      continue;
-    }
-
-    if (/^[-*]\s+/.test(trimmed)) {
-      const items: string[] = [];
-      while (i < lines.length) {
-        const line = lines[i].trim();
-        const match = line.match(/^[-*]\s+(.+)$/);
-        if (!match) break;
-        items.push(match[1].trim());
-        i += 1;
-      }
-      blocks.push({ type: "ul", items });
-      continue;
-    }
-
-    if (/^\d+\.\s+/.test(trimmed)) {
-      const items: string[] = [];
-      while (i < lines.length) {
-        const line = lines[i].trim();
-        const match = line.match(/^\d+\.\s+(.+)$/);
-        if (!match) break;
-        items.push(match[1].trim());
-        i += 1;
-      }
-      blocks.push({ type: "ol", items });
-      continue;
-    }
-
-    const paragraphLines: string[] = [trimmed];
-    i += 1;
-    while (i < lines.length) {
-      const next = lines[i].trim();
-      if (!next || isBlockStarter(next)) break;
-      paragraphLines.push(next);
-      i += 1;
-    }
-    blocks.push({ type: "paragraph", text: paragraphLines.join(" ") });
-  }
-
-  return blocks;
-}
-
-function renderMessage(content: string) {
-  if (!content) return <p className="sm-md-paragraph"><br /></p>;
-  const blocks = parseMessageBlocks(content);
-
-  return blocks.map((block, index) => {
-    if (block.type === "heading") {
-      const className =
-        block.level === 2 ? "sm-md-h2" : block.level === 3 ? "sm-md-h3" : "sm-md-h4";
-      return (
-        <h3 key={`h-${index}`} className={className}>
-          {renderInlineMarkdown(block.text)}
-        </h3>
-      );
-    }
-
-    if (block.type === "ul") {
-      return (
-        <ul key={`ul-${index}`} className="sm-md-list">
-          {block.items.map((item, itemIndex) => (
-            <li key={`uli-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
-          ))}
-        </ul>
-      );
-    }
-
-    if (block.type === "ol") {
-      return (
-        <ol key={`ol-${index}`} className="sm-md-list sm-md-list-ordered">
-          {block.items.map((item, itemIndex) => (
-            <li key={`oli-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
-          ))}
-        </ol>
-      );
-    }
-
-    return (
-      <p key={`p-${index}`} className="sm-md-paragraph">
-        {renderInlineMarkdown(block.text)}
-      </p>
-    );
-  });
-}
-
 function attestationLabel(attestation: AttestationReport | null) {
   if (!attestation) return "Pending";
   if (attestation.verificationLevel === "nonce") return "Nonce-verified";
@@ -287,329 +162,6 @@ function statusCopy(
   if (attestation?.verificationLevel === "format") return "Partial Verification";
   if (apiKeyRequired && !hasApiKeyOverride) return "API Key Required";
   return "Demo Mode";
-}
-
-
-
-function ApiKeyModal({
-  open,
-  onClose,
-  onSave,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onSave: (key: string) => void;
-}) {
-  const [key, setKey] = useState("");
-  if (!open) return null;
-
-  return (
-    <div className="sm-modal-overlay" onClick={onClose}>
-      <div className="sm-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
-        <div className="sm-modal-header">
-          <span className="sm-modal-title">NEAR AI API Key</span>
-          <button className="sm-modal-close" onClick={onClose} type="button">✕</button>
-        </div>
-        <div className="sm-modal-body">
-          <p className="sm-modal-copy">
-            Optional override. If a server key is already configured, you can skip this.
-            Override is kept in memory for the current session only.
-          </p>
-          <input
-            className="sm-input"
-            type="password"
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            placeholder="sk-..."
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && key.trim()) onSave(key.trim());
-            }}
-          />
-          <div className="sm-modal-actions">
-            <button className="sm-btn sm-btn-ghost" type="button" onClick={onClose}>Cancel</button>
-            <button
-              className="sm-btn sm-btn-solid"
-              type="button"
-              onClick={() => key.trim() && onSave(key.trim())}
-              disabled={!key.trim()}
-            >
-              Use Session Key
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function VaultModal({
-  open,
-  onUnlock,
-  error,
-}: {
-  open: boolean;
-  onUnlock: (passphrase: string) => void;
-  error: string;
-}) {
-  const [passphrase, setPassphrase] = useState("");
-  if (!open) return null;
-
-  return (
-    <div className="sm-modal-overlay">
-      <div className="sm-modal" style={{ maxWidth: 460 }}>
-        <div className="sm-modal-header">
-          <span className="sm-modal-title">Unlock Encrypted Vault</span>
-        </div>
-        <div className="sm-modal-body">
-          <p className="sm-modal-copy">
-            Your passphrase decrypts local vault records. SafeMind does not store this passphrase.
-          </p>
-          {error && <p className="sm-error-text">{error}</p>}
-          <input
-            className="sm-input"
-            type="password"
-            value={passphrase}
-            onChange={(e) => setPassphrase(e.target.value)}
-            placeholder="Enter vault passphrase"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && passphrase.trim()) onUnlock(passphrase.trim());
-            }}
-          />
-          <button
-            className="sm-btn sm-btn-solid"
-            type="button"
-            onClick={() => passphrase.trim() && onUnlock(passphrase.trim())}
-            disabled={!passphrase.trim()}
-          >
-            Unlock Vault
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PlanBuilderModal({
-  open,
-  initialTemplateId,
-  onClose,
-  onCreatePlan,
-}: {
-  open: boolean;
-  initialTemplateId: HealthPlanTemplateId;
-  onClose: () => void;
-  onCreatePlan: (input: { templateId: HealthPlanTemplateId; profile: string; goal: string }) => void;
-}) {
-  const [templateId, setTemplateId] = useState<HealthPlanTemplateId>(initialTemplateId);
-  const [profile, setProfile] = useState("");
-  const [goal, setGoal] = useState("");
-
-  if (!open) return null;
-
-  return (
-    <div className="sm-modal-overlay" onClick={onClose}>
-      <div className="sm-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 620 }}>
-        <div className="sm-modal-header">
-          <span className="sm-modal-title">Create Daily Health Plan</span>
-          <button className="sm-modal-close" type="button" onClick={onClose}>✕</button>
-        </div>
-        <div className="sm-modal-body">
-          <label className="sm-field-label">
-            Template
-            <select
-              className="sm-input"
-              value={templateId}
-              onChange={(e) => setTemplateId(e.target.value as HealthPlanTemplateId)}
-            >
-              {PLAN_TEMPLATES.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p className="sm-modal-copy">
-            {PLAN_TEMPLATES.find((template) => template.id === templateId)?.description}
-          </p>
-          <label className="sm-field-label">
-            Profile context
-            <textarea
-              className="sm-input sm-plan-textarea"
-              value={profile}
-              onChange={(e) => setProfile(e.target.value)}
-              placeholder="Example: 70kg, 175cm, beginner gym level, vegetarian, lactose sensitive."
-            />
-          </label>
-          <label className="sm-field-label">
-            Goal
-            <input
-              className="sm-input"
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-              placeholder="Example: Gain 5kg clean muscle in 2 months."
-            />
-          </label>
-          <div className="sm-modal-actions">
-            <button className="sm-btn sm-btn-ghost" type="button" onClick={onClose}>Cancel</button>
-            <button
-              className="sm-btn sm-btn-solid"
-              type="button"
-              onClick={() => onCreatePlan({ templateId, profile, goal })}
-            >
-              Generate Plan
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PrivacyDashboard({
-  open,
-  onClose,
-  activeConversation,
-  nowMs,
-  conversationCount,
-  messageCount,
-  attestation,
-  verification,
-  hasApiKeyOverride,
-  onExportData,
-  onExportDoctorBrief,
-  onSetRetention,
-  onDeleteAll,
-  onOpenApiKey,
-  onLockVault,
-}: {
-  open: boolean;
-  onClose: () => void;
-  activeConversation: Conversation;
-  nowMs: number | null;
-  conversationCount: number;
-  messageCount: number;
-  attestation: AttestationReport | null;
-  verification: ChatVerificationResult | null;
-  hasApiKeyOverride: boolean;
-  onExportData: () => void;
-  onExportDoctorBrief: () => void;
-  onSetRetention: (hours: number | null) => void;
-  onDeleteAll: () => void;
-  onOpenApiKey: () => void;
-  onLockVault: () => void;
-}) {
-  if (!open) return null;
-
-  return (
-    <div className="sm-modal-overlay" onClick={onClose}>
-      <div className="sm-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="sm-modal-header">
-          <span className="sm-modal-title">Privacy & Verification</span>
-          <button className="sm-modal-close" onClick={onClose} type="button">✕</button>
-        </div>
-        <div className="sm-modal-body">
-          <div className="sm-panel">
-            <div className="sm-panel-head">
-              <span className={`sm-status-dot ${attestation?.verified ? "sm-status-ok" : "sm-status-warn"}`} />
-              <h4>{attestationLabel(attestation)}</h4>
-            </div>
-            <p className="sm-panel-note">
-              {attestation?.note ?? "Attestation checks run after key access is available."}
-            </p>
-            <div className="sm-meta-grid">
-              <div><span>Model</span><strong>{attestation?.model ?? "—"}</strong></div>
-              <div><span>Nonce match</span><strong>{attestation?.nonceMatched ? "Yes" : "No"}</strong></div>
-              <div><span>Nonce</span><strong>{attestation?.nonce ? `${attestation.nonce.slice(0, 10)}…` : "—"}</strong></div>
-              <div><span>Model key fp</span><strong>{attestation?.keyFingerprint ?? "—"}</strong></div>
-              <div><span>Level</span><strong>{attestation?.verificationLevel ?? "none"}</strong></div>
-              <div><span>Checked</span><strong>{attestation?.checkedAt ? formatTime(attestation.checkedAt) : "—"}</strong></div>
-            </div>
-          </div>
-
-          <div className="sm-panel">
-            <h4>Verification Trace</h4>
-            <p className="sm-panel-note">
-              {verification
-                ? verification.signatureTextMatches
-                  ? `Chat ${verification.chatId.slice(0, 14)}… hashes matched signed text.`
-                  : "Signature fetched, but hash pair did not match."
-                : "Send a live message to generate signature evidence."}
-            </p>
-            {verification && (
-              <div className="sm-meta-grid">
-                <div><span>Request hash</span><strong>{`${verification.requestHash.slice(0, 10)}…${verification.requestHash.slice(-8)}`}</strong></div>
-                <div><span>Response hash</span><strong>{`${verification.responseHash.slice(0, 10)}…${verification.responseHash.slice(-8)}`}</strong></div>
-                <div><span>Chat ID</span><strong>{verification.chatId.slice(0, 18)}…</strong></div>
-                <div><span>Signature</span><strong>{verification.signatureFetched ? "Fetched" : "Missing"}</strong></div>
-              </div>
-            )}
-          </div>
-
-          <div className="sm-panel sm-panel-actions">
-            <div className="sm-action-row">
-              <div>
-                <strong>{conversationCount} conversations · {messageCount} messages</strong>
-                <p>Encrypted local storage</p>
-              </div>
-              <button className="sm-btn sm-btn-ghost" type="button" onClick={onExportData}>Export JSON</button>
-            </div>
-            <div className="sm-action-row">
-              <div>
-                <strong>Doctor-ready Brief</strong>
-                <p>Export structured summary for appointments</p>
-              </div>
-              <button className="sm-btn sm-btn-ghost" type="button" onClick={onExportDoctorBrief}>Export Brief</button>
-            </div>
-            <div className="sm-action-row">
-              <div>
-                <strong>Auto-delete Retention</strong>
-                <p>
-                  {activeConversation.expiresAt
-                    ? nowMs !== null
-                      ? `Current: ${formatDurationLeft(activeConversation.expiresAt, nowMs)}`
-                      : `Current: expires ${formatDate(activeConversation.expiresAt)}`
-                    : "Current: Never auto-delete"}
-                </p>
-              </div>
-              <select
-                className="sm-input sm-select"
-                value={activeConversation.retentionHours === null || activeConversation.retentionHours === undefined ? "never" : String(activeConversation.retentionHours)}
-                onChange={(e) => onSetRetention(e.target.value === "never" ? null : Number(e.target.value))}
-                aria-label="Set retention timer"
-              >
-                {RETENTION_OPTIONS.map((option) => (
-                  <option key={option.label} value={option.value === null ? "never" : option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="sm-action-row">
-              <div>
-                <strong>API Key Mode</strong>
-                <p>{hasApiKeyOverride ? "Session override active" : "Server-managed key"}</p>
-              </div>
-              <button className="sm-btn sm-btn-ghost" type="button" onClick={onOpenApiKey}>Set Override</button>
-            </div>
-            <div className="sm-action-row">
-              <div>
-                <strong>Lock Vault</strong>
-                <p>Clear passphrase from memory</p>
-              </div>
-              <button className="sm-btn sm-btn-ghost" type="button" onClick={onLockVault}>Lock</button>
-            </div>
-            <div className="sm-action-row">
-              <div>
-                <strong>Delete All Data</strong>
-                <p>Permanently remove local conversations</p>
-              </div>
-              <button className="sm-btn sm-btn-danger" type="button" onClick={onDeleteAll}>Delete</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function SafeMindApp({ visible }: { visible: boolean }) {
@@ -1225,7 +777,7 @@ function SafeMindApp({ visible }: { visible: boolean }) {
                     {msg.encrypted && <span className="sm-msg-tag">Encrypted</span>}
                   </div>
                   <div className={`sm-msg-content ${msg.role === "assistant" ? "sm-msg-content-ai" : "sm-msg-content-user"}`}>
-                    {renderMessage(msg.content)}
+                    <MessageRenderer content={msg.content} />
                   </div>
                 </article>
               ))}
@@ -1237,7 +789,9 @@ function SafeMindApp({ visible }: { visible: boolean }) {
                     <span className="sm-msg-tag">Streaming</span>
                   </div>
                   {streamingContent ? (
-                    <div className="sm-msg-content sm-msg-content-ai">{renderMessage(streamingContent)}</div>
+                    <div className="sm-msg-content sm-msg-content-ai">
+                      <MessageRenderer content={streamingContent} />
+                    </div>
                   ) : (
                     <div className="sm-typing">
                       <div className="sm-typing-dot" />
@@ -1324,6 +878,11 @@ function SafeMindApp({ visible }: { visible: boolean }) {
           setApiKeyModalOpen(true);
         }}
         onLockVault={lockVault}
+        retentionOptions={RETENTION_OPTIONS}
+        attestationLabel={attestationLabel}
+        formatTime={formatTime}
+        formatDate={formatDate}
+        formatDurationLeft={formatDurationLeft}
       />
 
       <ApiKeyModal
@@ -1336,6 +895,7 @@ function SafeMindApp({ visible }: { visible: boolean }) {
         key={`${planModalOpen ? "open" : "closed"}-${initialPlanTemplate}`}
         open={planModalOpen}
         initialTemplateId={initialPlanTemplate}
+        templates={PLAN_TEMPLATES}
         onClose={() => setPlanModalOpen(false)}
         onCreatePlan={handleCreatePlan}
       />

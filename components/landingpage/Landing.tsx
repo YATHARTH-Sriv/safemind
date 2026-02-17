@@ -2,6 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import { FaGithub, FaTwitter, FaYoutube } from "react-icons/fa";
+import Link from "next/link";
 
 interface LandingProps {
     dissolving: boolean;
@@ -206,25 +207,25 @@ export function Landing({ dissolving, onStart }: LandingProps) {
 
                 <footer className="sm-landing-footer" aria-label="Social links">
                     <div className="sm-landing-footer-icons">
-                        <a
-                            href="https://twitter.com/placeholder"
+                        <Link
+                            href="https://x.com/yatharth_sriv"
                             target="_blank"
                             rel="noreferrer"
                             aria-label="Twitter"
                             className="sm-social-link"
                         >
                             <FaTwitter />
-                        </a>
-                        <a
-                            href="https://github.com/placeholder/safemind"
+                        </Link>
+                        <Link
+                            href="https://github.com/YATHARTH-Sriv/safemind"
                             target="_blank"
                             rel="noreferrer"
                             aria-label="GitHub"
                             className="sm-social-link"
                         >
                             <FaGithub />
-                        </a>
-                        <a
+                        </Link>
+                        <Link
                             href="https://youtube.com/watch?v=placeholder"
                             target="_blank"
                             rel="noreferrer"
@@ -232,7 +233,7 @@ export function Landing({ dissolving, onStart }: LandingProps) {
                             className="sm-social-link"
                         >
                             <FaYoutube />
-                        </a>
+                        </Link>
                     </div>
                 </footer>
             </div>
