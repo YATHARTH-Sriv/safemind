@@ -201,7 +201,7 @@ export function Landing({ dissolving, onStart }: LandingProps) {
                     <h2>Built for the future. Ready right now.</h2>
                     <div className="sm-future-actions">
                         <button className="sm-btn sm-btn-solid" type="button" onClick={onStart}>Get started</button>
-                        <button className="sm-btn sm-btn-ghost" type="button">Read Security Notes</button>
+                        {/* <button className="sm-btn sm-btn-ghost" type="button">Read Security Notes</button> */}
                     </div>
                 </section>
 
@@ -226,7 +226,7 @@ export function Landing({ dissolving, onStart }: LandingProps) {
                             <FaGithub />
                         </Link>
                         <Link
-                            href="https://youtube.com/watch?v=placeholder"
+                            href="https://www.youtube.com/watch?v=H0T4eti-D1A"
                             target="_blank"
                             rel="noreferrer"
                             aria-label="YouTube demo"
